@@ -64,77 +64,118 @@ def process_and_load_mes(file_path, file_name):
 def process_and_load_sap(file_path, file_name):
     """Cleans both transactional goods movement logs and production column sheets into SSMS."""
     print(f"Processing SAP File: {file_name}...")
-    df = pd.read_excel(file_path)
 
-    # Strip whitespace from Excel column names
-    df.columns = df.columns.astype(str).str.strip()
+    xls = pd.ExcelFile(file_path)
 
-    # Case 1: Production Volume / Matrix Sheet (SAP 3)
-    if "Material Code" in df.columns or "Sum.Total" in df.columns:
-        print(" -> Detected Production Volume / Summary Sheet Layout")
+    # Iterate over sheets to find a tabular sheet, or parse the Pivot Table sheet
+    target_sheet = None
+    for sheet in xls.sheet_names:
+        if any(term in sheet.lower() for term in ["raw", "data", "list", "detail"]):
+            target_sheet = sheet
+            break
 
-        # Map to SQL Schema
-        df_clean = pd.DataFrame()
-        df_clean["Plant"] = "P313" # Default plant context
-        df_clean["StorageLocation"] = "PRT3"
-        df_clean["MovementType"] = 311 # Standard Goods Receipt / Production output
+    if target_sheet:
+        print(f" -> Reading detailed tab: '{target_sheet}'")
+        df = pd.read_excel(file_path, sheet_name=target_sheet)
+    else:
+        df = pd.read_excel(file_path, sheet_name=0)
 
-        # Map Material fields
-        if "Material Code" in df.columns:
-            df_clean["Material Code"] = df["Material Code"].astype(str).str.strip()
-        elif "Material" in df.columns:
-            df_clean["MaterialCode"] = df["Material"].astype(str).str.strip()
+    df.columns = df.columns.astype(str).str.strip().str.replace('\n', ' ')
+    cols_upper = [str(c).upper() for c in df.columns]
 
+    df_clean = pd.DataFrame()
+
+    # Helper function to find standard SAP columns flexible by keyword
+    def find_col(keywords):
+        for col in df.columns:
+            col_str = str(col).upper().strip()
+            for kw in keywords:
+                if kw == col_str or kw in col_str:
+                    return col
+        return None
+
+    # Case 1: Excel Pivot Table Layout
+    if "ROW LABELS" in cols_upper or "PCS" in cols_upper:
+        print(" -> Detected Pivot Table Summary Layout")
+        row_col = find_col(["ROW LABELS", "ROW"])
+        pcs_col = find_col(["PCS"])
+
+        if row_col and pcs_col:
+            parent_rows = df[df[row_col].astype(str).str.startswith("MD06", na=False)].copy()
+            df_clean["Plant"] = "P313"
+            df_clean["StorageLocation"] = "PROD"
+            df_clean["MovementType"] = 101
+            df_clean["MaterialCode"] = parent_rows[row_col].astype(str).str.strip()
+            df_clean["MaterialDescription"] = "Production Volume Output"
+            df_clean["Quantity"] = pd.to_numeric(
+                parent_rows[pcs_col].astype(str).str.replace('-', '0').str.replace(',', ''),
+                errors="coerce"
+            )
+            df_clean["UnitOfEntry"] = "PCS"
+            df_clean["PostingDate"] = pd.Timestamp.now().date()
+
+    # Case 2: Wide Matrix Sheet
+    elif any(k in cols_upper for k in ["MATERIAL CODE", "SUM.TOTAL", "[WT]SUM.TOTAL"]):
+        print(" -> Detected Production Volume / Summary Matrix Layout")
+        mat_col = find_col(["MATERIAL CODE", "MATERIAL"])
+        qty_col = find_col(["SUM.TOTAL", "SUM.GR", "[WT]SUM.TOTAL"])
+
+        df_clean["Plant"] = "P313"
+        df_clean["StorageLocation"] = "PROD"
+        df_clean["MovementType"] = 101
+        df_clean["MaterialCode"] = df[mat_col].astype(str).str.strip() if mat_col else None
         df_clean["MaterialDescription"] = "Production Volume Output"
-
-        # Map Quantity & Unit
-        if "Sum.Total" in df.columns:
-            df_clean["Quantity"] = pd.to_numeric(df["Sum.Total"], errors="coerce")
-        elif "[WT]Sum.Total" in df.columns:
-            df_clean["Quantity"] = pd.to_numeric(df["[WT]Sum.Total"], errors="coerce")
-
-        if "Base unit of Measure" in df.columns:
-            df_clean["UnitOfEntry"] = df["Base unit of Measure"].astype(str).str.strip()
-
-        # Default posting date to today/tile date if missing from matrix sheet
+        df_clean["Quantity"] = pd.to_numeric(df[qty_col], errors="coerce") if qty_col else 0
+        df_clean["UnitOfEntry"] = "PCS"
         df_clean["PostingDate"] = pd.Timestamp.now().date()
 
-    # Case 2: Standard Transactional Movement Log (SAP 2)
+    # Case 3: Transactional Goods Movement Log
     else:
         print(" -> Detected Transactional Goods Movement Layout")
-        column_mapping = {
-            "Plant": "Plant",
-            "Storage location": "StorageLocation",
-            "Movement type": "MovementType",
-            "Material": "MaterialCode",
-            "Material Description": "MaterialDescription",
-            "Batch": "Batch",
-            "Quantity": "Quantity",
-            "Unit of Entry": "UnitOfEntry",
-            "Posting Date": "PostingDate",
-            "Material Document": "MaterialDocument"
-        }
 
-        rename_dict = {col: column_mapping[col] for col in df.columns if col in column_mapping}
-        df_clean = df[list(rename_dict.keys())].rename(columns=rename_dict)
+        col_plant = find_col(["PLANT"])
+        col_sloc = find_col(["STORAGE LOCATION", "STOR. LOC.", "SLOC", "STORAGE LOC"])
+        col_mvt = find_col(["MOVEMENT TYPE", "MVT", "MOVE TYPE"])
+        col_mat = find_col(["MATERIAL CODE", "MATERIAL"])
+        col_desc = find_col(["MATERIAL DESCRIPTION", "MAT DESCRIPTION", "MATERIAL DESC"])
+        col_qty = find_col(["QUANTITY", "QTY"])
+        col_uom = find_col(["UNIT OF ENTRY", "UNE", "BUN", "UOM", "UNIT"])
+        col_date = find_col(["POSTING DATE", "POST. DATE", "ENTRY DATE"])
+        col_doc = find_col(["MATERIAL DOCUMENT", "MAT. DOC.", "DOCUMENT NO"])
 
-        if "Plant" not in df_clean.columns:
-            df_clean["Plant"] = "P313"
+        df_clean["Plant"] = df[col_plant].astype(str).str.strip() if col_plant else "P313"
+        df_clean["StorageLocation"] = df[col_sloc].astype(str).str.strip() if col_sloc else None
+        df_clean["MovementType"] = df[col_mvt] if col_mvt else None
+        df_clean["MaterialCode"] = df[col_mat].astype(str).str.strip() if col_mat else None
+        df_clean["MaterialDescription"] = df[col_desc].astype(str).str.strip() if col_desc else None
+        df_clean["Quantity"] = pd.to_numeric(df[col_qty], errors="coerce") if col_qty else 0
+        df_clean["UnitOfEntry"] = df[col_uom].astype(str).str.strip() if col_uom else "PCS"
 
-        if "PostingDate" in df_clean.columns:
-            df_clean["PostingDate"] = pd.to_datetime(df_clean["PostingDate"], errors="coerce").dt.date
+        if col_date:
+            df_clean["PostingDate"] = pd.to_datetime(df[col_date], errors="coerce").dt.date
+        else:
+            df_clean["PostingDate"] = pd.Timestamp.now().date()
+
+        if col_doc:
+            df_clean["MaterialDocument"] = df[col_doc].astype(str).str.strip()
+
+    # Fill fallback Plant if null values remain
+    df_clean["Plant"] = df_clean["Plant"].fillna("P313")
 
     # --- Common Cleanup ---
     if "Quantity" in df_clean.columns:
         df_clean["Quantity"] = pd.to_numeric(df_clean["Quantity"], errors="coerce")
-    if "MovementType" in df_clean.columns:
-        df_clean["MovementType"] = pd.to_numeric(df_clean["MovementType"], errors="coerce")
+        df_clean = df_clean[df_clean["Quantity"] > 0].copy()
 
-    # Drop rows without material code or valid quantity
-    df_clean.dropna(subset=["MaterialCode", "Quantity"], inplace=True)
-    df_clean=df_clean[df_clean["Quantity"] > 0].copy()
+    subset_cols = [col for col in ["MaterialCode", "Quantity"] if col in df_clean.columns]
+    if subset_cols:
+        df_clean.dropna(subset=subset_cols, inplace=True)
 
     df_clean["SourceFileName"] = file_name
+
+    if df_clean.empty:
+        print(f" Warning: No valid rows processed from {file_name}. Skipping insert.")
+        return
 
     # Load into SSMS
     df_clean.to_sql("Fact_SAP_MaterialMovement", con=engine, if_exists="append", index=False)
