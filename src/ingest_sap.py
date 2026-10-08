@@ -1,13 +1,6 @@
 import pandas as pd
 
-def process_sap_file(file_path):
-    """
-    Reads raw SAP goods movement exports and cleans columns for Fact_SAP_MaterialMovement.
-    """
-    df = pd.read_excel(file_path)
-    
-    # Map raw SAP header names to database fields
-    column_mapping = {
+column_mapping = {
         "Plant": "Plant",
         "Storage location": "StorageLocation",
         "Movement type": "MovementType",
@@ -19,6 +12,15 @@ def process_sap_file(file_path):
         "Posting Date": "PostingDate",
         "Material Document": "MaterialDocument"
     }
+
+def process_sap_file(file_path):
+    """
+    Reads raw SAP goods movement exports and cleans columns for Fact_SAP_MaterialMovement.
+    """
+    df = pd.read_excel(file_path)
+    
+    # Map raw SAP header names to database fields
+
     
     df_clean = df[list(column_mapping.keys())].rename(columns=column_mapping)
     
