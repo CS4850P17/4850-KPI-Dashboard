@@ -62,5 +62,5 @@ def process_sap_file(file_path):
     return df_clean
 
 
-df = process_sap_file("input_files/3_SAP_Material Consumption Raw Data.XLSX")
+df = process_sap_file("data/raw/3_SAP_Material Consumption Raw Data.XLSX")
 print(df)
