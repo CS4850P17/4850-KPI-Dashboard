@@ -4,9 +4,17 @@ import pandas as pd
 from sqlalchemy import create_engine
 
 # --- CONFIGURATION ---
-# Use a raw string r"..." to fix SyntaxWarning with backslashes
-SERVER_NAME = r"CHOPPER\SQLEXPRESS"
-DATABASE_NAME = "ManufacturingKPI"
+SERVER_NAME = "qcells-team3.database.windows.net"
+DATABASE_NAME = "qcells-database
+
+# Test for Azure SQL
+params = urllib.parse.quote_plus(
+    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+    f"SERVER={SERVER_NAME};"
+    f"DATABASE={DATABASE_NAME};"
+    f"UID=team3;pwd=Blueberry123;"
+    f"TrustServerCertificate=yes;"
+)
 
 # Connection string setup
 params = urllib.parse.quote_plus(
