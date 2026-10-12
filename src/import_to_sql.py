@@ -5,7 +5,7 @@ from sqlalchemy import create_engine
 
 # --- CONFIGURATION ---
 SERVER_NAME = "qcells-team3.database.windows.net"
-DATABASE_NAME = "qcells-database
+DATABASE_NAME = "qcells-database"
 
 # Test for Azure SQL
 params = urllib.parse.quote_plus(
@@ -13,15 +13,6 @@ params = urllib.parse.quote_plus(
     f"SERVER={SERVER_NAME};"
     f"DATABASE={DATABASE_NAME};"
     f"UID=team3;pwd=Blueberry123;"
-    f"TrustServerCertificate=yes;"
-)
-
-# Connection string setup
-params = urllib.parse.quote_plus(
-    f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-    f"SERVER={SERVER_NAME};"
-    f"DATABASE={DATABASE_NAME};"
-    f"Trusted_Connection=yes;"
     f"TrustServerCertificate=yes;"
 )
 
@@ -163,11 +154,13 @@ def process_and_load_sap(file_path, file_name):
             df_clean["MovementType"] = 101
             df_clean["MaterialCode"] = parent_rows[row_col].astype(str).str.strip()
             df_clean["MaterialDescription"] = "Production Volume Output"
+            df_clean["Batch"] = "-"
             df_clean["Quantity"] = pd.to_numeric(
                 parent_rows[pcs_col].astype(str).str.replace('-', '0').str.replace(',', ''), errors="coerce"
             )
             df_clean["UnitOfEntry"] = "PCS"
             df_clean["PostingDate"] = pd.Timestamp.now().date()
+            df_clean["MaterialDocument"] = [f"PV-AGG-{i+1:04d}" for i in range(len(parent_rows))]
 
     elif has_matrix_cols and find_col(["MATERIAL", "CODE", "PRODUCT"]):
         print(" -> Detected Production Volume / Summary Matrix Layout")
@@ -195,6 +188,7 @@ def process_and_load_sap(file_path, file_name):
         col_uom = find_col(["UNIT OF ENTRY", "UNE", "BUN", "UOM", "UNIT"])
         col_date = find_col(["POSTING DATE", "POST. DATE", "ENTRY DATE"])
         col_doc = find_col(["MATERIAL DOCUMENT", "MAT. DOC.", "DOCUMENT NO"])
+        col_batch = find_col(["BATCH", "LOT"])
 
         # Positional fallbacks if columns are not named explicitly
         if not col_mat and len(df.columns) >= 7:
@@ -209,6 +203,7 @@ def process_and_load_sap(file_path, file_name):
         df_clean["MovementType"] = df[col_mvt] if col_mvt else 101
         df_clean["MaterialCode"] = df[col_mat].astype(str).str.strip() if col_mat else None
         df_clean["MaterialDescription"] = df[col_desc].astype(str).str.strip() if col_desc else "SAP Material"
+        df_clean["Batch"] = df[col_batch].astype(str).str.strip() if col_batch else "-"
         df_clean["Quantity"] = pd.to_numeric(df[col_qty], errors="coerce") if col_qty else 0
         df_clean["UnitOfEntry"] = df[col_uom].astype(str).str.strip() if col_uom else "PCS"
 
@@ -219,11 +214,14 @@ def process_and_load_sap(file_path, file_name):
 
         if col_doc:
             df_clean["MaterialDocument"] = df[col_doc].astype(str).str.strip()
+        else: 
+            df_clean["MaterialDocument"] = [f"TRN-SYS-{i+1:04d}" for i in range(len(df))]
 
     # Guarantee required non-nullable columns have defaults
     df_clean["Plant"] = df_clean["Plant"].fillna("P313")
     df_clean["StorageLocation"] = df_clean["StorageLocation"].fillna("PROD")
     df_clean["Quantity"] = pd.to_numeric(df_clean["Quantity"], errors="coerce").fillna(0)
+    df_clean["Batch"] = df_clean["Batch"].fillna("-")
 
     # Clean empty records
     df_clean = df_clean[df_clean["Quantity"] > 0].copy()
