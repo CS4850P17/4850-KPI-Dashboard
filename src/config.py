@@ -1,14 +1,9 @@
 import os
 from sqlalchemy import create_engine
 
-# Database connection settings
-# adjust server name and database name to match SQL server instance
-SERVER = os.gatenv("DB_SERVER", "localhost")
-DATABASE = os.gatenv("DB_NAME", "ManufacturingKPI")
-DRIVER = "ODBC Driver 17 for SQL Server"
-
-# SQLAlchemy connection string using Windows Authentication
-CONN_STR = f"mssql+pyodbc://@{SERVER}/{DATABASE}?driver={DRIVER}&trusted_connection=yes"
+# Use a local SQLite database file for your student project
+DB_FILE = "manufacturing_kpi.db"
+CONN_STR = f"sqlite:///{DB_FILE}"
 
 def get_db_engine():
-  return create_engine(CONN_STR)
+    return create_engine(CONN_STR)

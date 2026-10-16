@@ -1,45 +1,33 @@
-#all the imports used
-import numpy as np
-import pandas as pd
 import os
-from config import get_db_engine
-from ingest_mes import process_mes_file
-from ingest_sap import process_sap_file
+from import_to_sql import load_mes_to_sql, load_sap_production_to_sql, load_sap_movement_to_sql
+
+RAW_DATA_DIR = os.path.join("data", "raw")
 
 def run_pipeline():
-  engine = get_db_engine()
-  raw_dir = os.path.join("data", "raw")
+    if not os.path.exists(RAW_DATA_DIR):
+        print(f"Directory '{RAW_DATA_DIR}' not found. Please create it and add your Excel files.")
+        return
 
-  print("Starting pipeline execution...")
+    files = [f for f in os.listdir(RAW_DATA_DIR) if f.lower().endswith(('.xlsx', '.xls'))]
+    if not files:
+        print(f"No Excel files found in '{RAW_DATA_DIR}'.")
+        return
 
-  for file_name in os.listdir(raw_dir):
-    file_path = os.path.join(raw_dir, file_name)
+    for file_name in files:
+        file_path = os.path.join(RAW_DATA_DIR, file_name)
+        print(f"\nProcessing file: {file_name}")
+        
+        upper_name = file_name.upper()
+        if "MES" in upper_name or "TABBER" in upper_name or "EQP" in upper_name:
+            load_mes_to_sql(file_path, file_name)
+        elif "PROD" in upper_name or "VOLUME" in upper_name or "PV" in upper_name:
+            load_sap_production_to_sql(file_path, file_name)
+        elif "SAP" in upper_name or "MOVEMENT" in upper_name or "MATERIAL" in upper_name:
+            load_sap_movement_to_sql(file_path, file_name)
+        else:
+            print(f"⚠️ Unrecognized file pattern for: {file_name}. Skipping.")
 
-    # MES file ingestion
-    if "MES" in file_name.upper() or "TABBER" in file_name.upper():
-      print(f"Processing MES file: {file_name}")
-      df_mes = process_mes_file(file_path)
-      df_mes.to_sql("Fact_EquipmentState", con=engine, if_exists="append", index=False)
-      print(f"Successfully loaded {len(df_mes)} rows into Fact_EquipmentState.")
-
-    # SAP file ingestion
-    elif "SAP" in file_name.upper() or "311" in file_name:
-      print(f"Processing SAP file: {file_name}")
-      df_sap = process_sap_file(file_path)
-      df_sap.to_sql("Fact_SAP_MaterialMovement", con=engine, if_exists="append", index=False)
-      print(f"Successfully loaded {len(df_sap)} rows into Fact_SAP_MaterialMovement.")
-
-
-let preprocessing():
-  #load the file
-  #do what needs to be done on the file like filling the nulls/blanks if necessary.
-  #save the file to be used later in PowerBI as a json or some other data file type
-
-
-
-
-
-
-if __name__ = "__main__":
-  preprocessing()
-  run_pipeline()
+if __name__ == "__main__":
+    print("Starting KPI Dashboard Pipeline...")
+    run_pipeline()
+    print("Pipeline execution complete!")
