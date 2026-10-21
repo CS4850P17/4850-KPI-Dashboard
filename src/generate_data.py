@@ -98,32 +98,32 @@ wb_eqp.save(file_eqp)
 # ----------------------------
 # 2. SAP PRODUCTION VOLUME
 # ----------------------------
-mat_codes_prod = ["MD06G1103-074", "MD06G1103-090", "MD06G1103-091", "MD06G1103-093", "MD06G1103-096", "MD06G1103-098",
-                  "MD06G1103-101", "MD06G1103-103", "MD06G1203-003", "MD06G1207-001", "MD06G1207-002"]
-lines = ["G01", "C"]
+line_models = [
+    {"Line": "Line A", "Model": "M-100", "Target": 42000, "Factor": 1.00},  # Meeting target (100%)
+    {"Line": "Line B", "Model": "M-200", "Target": 42000, "Factor": 0.80},  # Underperforming (80%)
+    {"Line": "Line C", "Model": "M-300", "Target": 42000, "Factor": 1.057}  # Above target (105.7%)
+]
+
 power_classes = [585, 590, 595, 650, 655, 660, 675]
-
+weekly_dates = pd.date_range(start="2026-08-01", end="2026-08-07", freq="D")
 prod_records = []
-for dt in dates:
-    vol_factor = np.random.choice([0.6, 1.0, 1.3], p=[0.25, 0.50, 0.25])
-    status = "Under Expectations" if vol_factor < 0.8 else (
-        "Meeting Expectations" if vol_factor <= 1.1 else "Above Target")
 
-    for mat in mat_codes_prod:
-        for line in lines:
-            p_class = np.random.choice(power_classes)
-            pcs_produced = int(np.random.choice([0, 31, 155, 465, 2604, 4185]) * vol_factor)
-            mw_produced = round((pcs_produced * p_class) / 1000000.0, 4)
+for dt in weekly_dates:
+    day_weight = 1.0 + np.random.uniform(-0.03, 0.03)
+    for lm in line_models:
+        p_class = np.random.choice(power_classes)
+        base_daily_pcs = (lm["Target"] / 7) * lm["Factor"] * day_weight
+        pcs_produced = int(round(base_daily_pcs))
+        mw_produced = round((pcs_produced * p_class) / 1000000.0, 4)
 
-            prod_records.append({
-                "Posting Date": dt.strftime("%Y-%m-%d"),
-                "Material Code": mat,
-                "Line": line,
-                "Power Class (W)": p_class,
-                "Performance Status": status,
-                "Production Volume (PCS)": pcs_produced,
-                "Capacity (MW)": mw_produced
-            })
+        prod_records.append({
+            "Posting Date": dt.strftime("%Y-%m-%d"),
+            "Line": lm["Line"],
+            "Material Code": lm["Model"],
+            "Power Class (W)": p_class,
+            "Production Volume (PCS)": pcs_produced,
+            "Capacity (MW)": mw_produced
+        })
 
 df_prod = pd.DataFrame(prod_records)
 file_prod = "SAP_Production_Volume.xlsx"
@@ -145,12 +145,12 @@ for row_idx in range(2, len(df_prod) + 2):
         cell = ws_prod.cell(row=row_idx, column=col_num)
         cell.font = data_font
         cell.border = thin_border
-        if col_num in [1, 2, 3, 5]:
+        if col_num in [1, 2, 3, 4]:
             cell.alignment = Alignment(horizontal="center")
-        elif col_num in [4, 6]:
+        elif col_num == 5:
             cell.number_format = '#,##0'
             cell.alignment = Alignment(horizontal="right")
-        elif col_num == 7:
+        elif col_num == 6:
             cell.number_format = '#,##0.0000'
             cell.alignment = Alignment(horizontal="right")
 
