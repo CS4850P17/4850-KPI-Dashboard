@@ -1,6 +1,5 @@
 import pandas as pd
 
-# Comprehensive raw SAP header -> clean column name mapping for material consumption
 column_mapping = {
     "Plant": "Plant",
     "Storage location": "StorageLocation",
@@ -33,10 +32,7 @@ column_mapping = {
 }
 
 def process_production_file(file_path):
-    """
-    Reads the SAP Production Volume report with extra title/header rows.
-    Expected actual headers: Row Labels, MW, PCS.
-    """
+    """Reads the SAP Production Volume report and keeps all columns."""
     df = pd.read_excel(file_path, header=None)
     header_row = None
     for i in range(min(20, len(df))):
@@ -49,38 +45,24 @@ def process_production_file(file_path):
         raise ValueError("Could not find the header row containing 'Row Labels', 'MW', and 'PCS'.")
         
     df.columns = df.iloc[header_row].astype(str).str.strip()
-    df = df.iloc[header_row + 1:].copy()
+    df_clean = df.iloc[header_row + 1:].copy()
     
-    # Check if required columns exist
-    required_columns = ["Row Labels", "MW", "PCS"]
-    for col in required_columns:
-        if col not in df.columns:
-            raise ValueError(f"Missing production column: {col}")
-            
-    df_clean = df[required_columns].copy()
-    df_clean = df_clean.rename(columns={"Row Labels": "RowLabels"})
-    df_clean = df_clean.dropna(subset=["RowLabels"])
-    
-    for col in ["MW", "PCS"]:
-        df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
+    if "Row Labels" in df_clean.columns:
+        df_clean = df_clean.rename(columns={"Row Labels": "RowLabels"})
         
-    return df_clean.drop_duplicates().reset_index(drop=True)
+    for col in ["MW", "PCS"]:
+        if col in df_clean.columns:
+            df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
+            
+    return df_clean.reset_index(drop=True)
 
 def process_sap_file(file_path):
-    """
-    Reads the raw SAP material consumption export, removes duplicates,
-    drops unneeded columns, and standardizes names and data types.
-    """
+    """Reads raw SAP material consumption, renames mapped columns, but keeps all extra columns."""
     df = pd.read_excel(file_path)
 
-    # Drop exact duplicate rows
-    df = df.drop_duplicates()
-
-    # Filter mapping keys that actually exist in the uploaded file to avoid KeyErrors
-    valid_cols = [col for col in column_mapping.keys() if col in df.columns]
-    
-    df_clean = df[valid_cols].copy()
-    df_clean = df_clean.rename(columns={k: column_mapping[k] for k in valid_cols})
+    # Rename only the columns that exist in our mapping dictionary, keep the rest
+    rename_dict = {k: v for k, v in column_mapping.items() if k in df.columns}
+    df_clean = df.rename(columns=rename_dict).copy()
 
     # Data type conversions for date fields if present
     for col in ["PostingDate", "DocumentDate", "EntryDate", "EnteredOnEST"]:
@@ -96,7 +78,6 @@ def process_sap_file(file_path):
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
 
-    # Material Document formatting as integer identifier
     if "MaterialDocument" in df_clean.columns:
         df_clean["MaterialDocument"] = pd.to_numeric(
             df_clean["MaterialDocument"], errors="coerce"
