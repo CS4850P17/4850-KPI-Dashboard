@@ -13,7 +13,7 @@ def route_and_load_file(file_path, file_name):
     
     if any(keyword in name_upper for keyword in ["MES", "TABBER", "EQP"]):
         load_mes_to_sql(file_path, file_name)
-    elif any(keyword in name_upper for keyword in ["PROD", "VOLUME", "PV"]):
+    elif any(keyword in name_upper for keyword in ["PROD", "VOLUME", "PV", "RD"]):
         load_sap_production_to_sql(file_path, file_name)
     elif any(keyword in name_upper for keyword in ["SAP", "MOVEMENT", "MATERIAL"]):
         load_sap_movement_to_sql(file_path, file_name)

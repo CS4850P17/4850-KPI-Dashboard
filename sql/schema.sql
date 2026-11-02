@@ -4,9 +4,10 @@ GO
 USE ManufacturingKPI;
 GO
 
--- Table 1: MES Equipment State & OEE Data
+-- Table 1: MES Equipment State & OEE Data (Multi-Sheet: Tabber, Front End, Back End)
 CREATE TABLE dbo.Fact_EquipmentState (
     StateID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    SheetName VARCHAR(50) NULL,
     LogDate DATE NULL,
     EquipmentName VARCHAR(100) NOT NULL,
     Category VARCHAR(100) NOT NULL,
@@ -16,7 +17,38 @@ CREATE TABLE dbo.Fact_EquipmentState (
 );
 GO
 
--- Table 2: SAP Goods Movement & Material Consumption Data (Expanded with all raw columns)
+-- Table 2: SAP Production Volume (Sheet: 1) SAP PV)
+CREATE TABLE dbo.Fact_SAP_ProductionVolume (
+    VolumeID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    RowLabels VARCHAR(100) NULL,
+    MW DECIMAL(12,4) NULL,
+    PCS DECIMAL(12,4) NULL,
+    SourceFileName VARCHAR(255) NULL,
+    IngestedAt DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- Table 3: SAP Raw Data & Stock Status (Sheet: 2) SAP RD (0801))
+CREATE TABLE dbo.Fact_SAP_RawData (
+    RawDataID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    Materialtype VARCHAR(50) NULL,
+    Storagelocation VARCHAR(20) NULL,
+    Material VARCHAR(50) NULL,
+    MaterialDescription VARCHAR(255) NULL,
+    Efficiency_WT_ DECIMAL(8,2) NULL,
+    Qgrade VARCHAR(20) NULL,
+    LastStock DECIMAL(12,4) NULL,
+    WTLastStock DECIMAL(12,4) NULL,
+    GR DECIMAL(12,4) NULL,
+    WTGR DECIMAL(12,4) NULL,
+    Sum_Total DECIMAL(12,4) NULL,
+    PCS DECIMAL(12,4) NULL,
+    SourceFileName VARCHAR(255) NULL,
+    IngestedAt DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- Table 4: SAP Material Movement & Consumption Data
 CREATE TABLE dbo.Fact_SAP_MaterialMovement (
     MovementID BIGINT IDENTITY(1,1) PRIMARY KEY,
     Plant VARCHAR(20) NULL,

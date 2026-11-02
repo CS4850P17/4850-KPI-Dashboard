@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 
-# Standardized column mapping for SQL compatibility
 column_mapping = {
     "Plant": "Plant",
     "Storage location": "StorageLocation",
@@ -43,11 +42,12 @@ def clean_missing_values(df):
     return df.where(pd.notnull(df), None)
 
 def process_production_file(file_path):
-    """Reads and cleans SAP Production Volume reports while retaining all data."""
-    df = pd.read_excel(file_path, header=None)
+    """Reads and cleans SAP Production Volume reports (Sheet: 1) SAP PV)."""
+    xls = pd.ExcelFile(file_path)
+    sheet_name = "1) SAP PV" if "1) SAP PV" in xls.sheet_names else xls.sheet_names[0]
+    df = pd.read_excel(xls, sheet_name=sheet_name, header=None)
     header_row = None
     
-    # Locate dynamic header row
     for i in range(min(20, len(df))):
         row_vals = [str(v).strip().casefold() for v in df.iloc[i].tolist()]
         if "row labels" in row_vals and "mw" in row_vals and "pcs" in row_vals:
@@ -63,36 +63,52 @@ def process_production_file(file_path):
     if "Row Labels" in df_clean.columns:
         df_clean = df_clean.rename(columns={"Row Labels": "RowLabels"})
         
-    # Enforce numeric types safely
     for col in ["MW", "PCS"]:
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
             
     return clean_missing_values(df_clean).reset_index(drop=True)
 
+def process_sap_rd_file(file_path):
+    """Reads and cleans SAP Raw Data / Stock Status report (Sheet: 2) SAP RD (0801))."""
+    xls = pd.ExcelFile(file_path)
+    if "2) SAP RD (0801)" not in xls.sheet_names:
+        return pd.DataFrame()
+        
+    df = pd.read_excel(xls, sheet_name="2) SAP RD (0801)")
+    
+    # Standardize column names for SQL compatibility
+    clean_cols = {}
+    for col in df.columns:
+        clean_name = str(col).strip().replace("[", "").replace("]", "").replace(" ", "").replace(".", "_").replace("(", "_").replace(")", "_")
+        clean_cols[col] = clean_name
+        
+    df_clean = df.rename(columns=clean_cols).copy()
+    
+    # Coerce numeric columns
+    for col in df_clean.select_dtypes(include=[np.number]).columns:
+        df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
+        
+    return clean_missing_values(df_clean)
+
 def process_sap_file(file_path):
     """Ingests raw SAP material data, preserves duplicates/extra columns, and standardizes types."""
     df = pd.read_excel(file_path)
 
-    # Rename mapped columns while keeping any extra unmapped columns intact
     rename_dict = {k: v for k, v in column_mapping.items() if k in df.columns}
     df_clean = df.rename(columns=rename_dict).copy()
 
-    # Standardize Date fields
     date_cols = ["PostingDate", "DocumentDate", "EntryDate", "EnteredOnEST"]
     for col in date_cols:
         if col in df_clean.columns:
             df_clean[col] = pd.to_datetime(df_clean[col], errors="coerce").dt.date
 
-    # Standardize Numeric fields
     numeric_cols = ["Quantity", "MovementType", "AmountLocalCurrency", "Item", "Reservation", "Reference"]
     for col in numeric_cols:
         if col in df_clean.columns:
             df_clean[col] = pd.to_numeric(df_clean[col], errors="coerce")
 
-    # Handle nullable integer formatting for Material Document
     if "MaterialDocument" in df_clean.columns:
         df_clean["MaterialDocument"] = pd.to_numeric(df_clean["MaterialDocument"], errors="coerce").astype("Int64")
 
-    # Final sanitization pass for SQL compatibility (retains all rows and duplicates)
     return clean_missing_values(df_clean)
