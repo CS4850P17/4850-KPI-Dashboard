@@ -89,3 +89,24 @@ The project uses industry-sponsored data. Confidential or proprietary sponsor da
 🚧 **Currently in development**
 
 The project is being developed as part of a university capstone project and will be updated as the Python pipeline, SQL database, KPI calculations, and Power BI dashboard are completed.
+
+## Integrated pipeline usage
+
+The entry point is `main.py`. Place approved Excel workbooks in `data/raw/`.
+
+```bash
+pip install -r requirements.txt
+python main.py
+```
+
+This runs the new **`preprocessing(excel_file)` function in `main.py`** for the three-sheet MES equipment workbook and uses the existing `src/ingest_sap.py`, `src/ingest_mes.py`, and `src/validation.py` for other supported workbooks. Four MES CSV reports and `analysis.json` appear under `data/processed/`.
+
+To append to the team's pre-existing SQL Server fact tables, configure the `DB_*` environment variables shown in `.env.example`, confirm the database schema, then run:
+
+```bash
+python main.py --load-sql
+```
+
+**Important:** SQL mode appends and can create duplicate records when rerun. It is off by default. Database access was not tested. MES RUN percentage is provisional; all-zero records are flagged instead of silently treated as valid. Do not commit actual sponsor workbooks, processed sponsor data, or credentials.
+
+The original uploaded `import_to_sql.py` is *not* included in this package because it contains a hard-coded SQL password and overlapping ingestion logic. That credential should be rotated if it is active. The previous `config.py` also contained a typo (`os.gatenv`) fixed in `src/config.py`.
