@@ -1,31 +1,26 @@
-"""SQL Server connection settings. Keep credentials outside source code."""
-
 import os
-from urllib.parse import quote_plus
+import urllib
 from sqlalchemy import create_engine
 
+# Run with Azure SQL Server and not locally
+USE_AZURE = True
+
+SERVER_NAME = "qcells-team3.database.windows.net"
+DATABASE_NAME = "qcells-database"
+DB_USER = "team3"
+DB_PASS = "Blueberry123"
 
 def get_db_engine():
-    server = os.getenv("DB_SERVER", "localhost")
-    database = os.getenv("DB_NAME", "ManufacturingKPI")
-    driver = os.getenv("DB_DRIVER", "ODBC Driver 18 for SQL Server")
-    auth = os.getenv("DB_AUTH", "windows").lower()
-
-    parts = [
-        f"DRIVER={{{driver}}}",
-        f"SERVER={server}",
-        f"DATABASE={database}",
-        "Encrypt=yes",
-        f"TrustServerCertificate={os.getenv('DB_TRUST_CERT', 'no')}",
-    ]
-
-    if auth == "sql":
-        username = os.getenv("DB_USER")
-        password = os.getenv("DB_PASSWORD")
-        if not username or not password:
-            raise ValueError("DB_USER and DB_PASSWORD must be set for SQL authentication")
-        parts.extend([f"UID={username}", f"PWD={password}"])
+    if USE_AZURE:
+        params = urllib.parse.quote_plus(
+            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
+            f"SERVER={SERVER_NAME};"
+            f"DATABASE={DATABASE_NAME};"
+            f"UID={DB_USER};pwd={DB_PASS};"
+            f"TrustServerCertificate=yes;"
+        )
+        conn_str = f"mssql+pyodbc:///?odbc_connect={params}"
     else:
-        parts.append("Trusted_Connection=yes")
+        conn_str = "sqlite:///manufacturing_kpi.db"
 
-    return create_engine("mssql+pyodbc:///?odbc_connect=" + quote_plus(";".join(parts)))
+    return create_engine(conn_str)
