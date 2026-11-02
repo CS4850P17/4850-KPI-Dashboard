@@ -1,7 +1,8 @@
 import os
+import pandas as pd
 from import_to_sql import (
-    load_mes_to_sql, 
-    load_sap_production_to_sql, 
+    load_mes_to_sql,
+    load_sap_production_to_sql,
     load_sap_movement_to_sql
 )
 
@@ -11,11 +12,11 @@ def route_and_load_file(file_path, file_name):
     """Routes each raw Excel file to its corresponding database loader based on naming keywords."""
     name_upper = file_name.upper()
     
-    if any(keyword in name_upper for keyword in ["MES", "TABBER", "EQP"]):
+    if any(keyword in name_upper for keyword in ["MES", "TABBER", "EQP", "OPERATION"]):
         load_mes_to_sql(file_path, file_name)
     elif any(keyword in name_upper for keyword in ["PROD", "VOLUME", "PV", "RD"]):
         load_sap_production_to_sql(file_path, file_name)
-    elif any(keyword in name_upper for keyword in ["SAP", "MOVEMENT", "MATERIAL"]):
+    elif any(keyword in name_upper for keyword in ["SAP", "MOVEMENT", "MATERIAL", "311"]):
         load_sap_movement_to_sql(file_path, file_name)
     else:
         print(f"⚠️ Unrecognized file pattern for '{file_name}'. Skipping.")
