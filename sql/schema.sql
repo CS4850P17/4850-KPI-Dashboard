@@ -4,87 +4,83 @@ GO
 USE ManufacturingKPI;
 GO
 
--- Table 1: MES Equipment State & OEE Data (Multi-Sheet: Tabber, Front End, Back End)
+-- 1. MES Equipment State Table
 CREATE TABLE dbo.Fact_EquipmentState (
     StateID BIGINT IDENTITY(1,1) PRIMARY KEY,
     SheetName VARCHAR(50) NULL,
-    LogDate DATE NULL,
-    EquipmentName VARCHAR(100) NOT NULL,
     Category VARCHAR(100) NOT NULL,
-    TimePercentage DECIMAL(8,4) NOT NULL,
+    EquipmentName VARCHAR(100) NOT NULL,
+    TimePercentage DECIMAL(8,4) NULL,
+    IsNoData INT DEFAULT 0,
     SourceFileName VARCHAR(255) NULL,
     IngestedAt DATETIME DEFAULT GETDATE()
 );
 GO
 
--- Table 2: SAP Production Volume (Sheet: 1) SAP PV)
+-- 2. SAP Production Volume Table (Primary RD Source, Excludes ZBOM from Calculations)
 CREATE TABLE dbo.Fact_SAP_ProductionVolume (
     VolumeID BIGINT IDENTITY(1,1) PRIMARY KEY,
-    RowLabels VARCHAR(100) NULL,
-    MW DECIMAL(12,4) NULL,
-    PCS DECIMAL(12,4) NULL,
-    SourceFileName VARCHAR(255) NULL,
-    IngestedAt DATETIME DEFAULT GETDATE()
-);
-GO
-
--- Table 3: SAP Raw Data & Stock Status (Sheet: 2) SAP RD (0801))
-CREATE TABLE dbo.Fact_SAP_RawData (
-    RawDataID BIGINT IDENTITY(1,1) PRIMARY KEY,
-    Materialtype VARCHAR(50) NULL,
-    Storagelocation VARCHAR(20) NULL,
-    Material VARCHAR(50) NULL,
+    MaterialCode VARCHAR(100) NULL,
     MaterialDescription VARCHAR(255) NULL,
-    Efficiency_WT_ DECIMAL(8,2) NULL,
+    Efficiency_WT DECIMAL(8,2) NULL,
     Qgrade VARCHAR(20) NULL,
-    LastStock DECIMAL(12,4) NULL,
-    WTLastStock DECIMAL(12,4) NULL,
-    GR DECIMAL(12,4) NULL,
-    WTGR DECIMAL(12,4) NULL,
-    Sum_Total DECIMAL(12,4) NULL,
-    PCS DECIMAL(12,4) NULL,
+    GradeCategory VARCHAR(50) NULL,
+    GR_Qty DECIMAL(12,4) NULL,
+    ProductionVolume_MW DECIMAL(12,2) NULL,
+    IsZBOM INT DEFAULT 0,
     SourceFileName VARCHAR(255) NULL,
     IngestedAt DATETIME DEFAULT GETDATE()
 );
 GO
 
--- Table 4: SAP Material Movement & Consumption Data
+-- 3. Normalized KPI 2026 Reference Table
+CREATE TABLE dbo.Fact_KPI_Reference (
+    KPI_ID BIGINT IDENTITY(1,1) PRIMARY KEY,
+    [Year] INT NULL,
+    [Month] INT NULL,
+    Fab VARCHAR(50) NULL,
+    Site VARCHAR(50) NULL,
+    ProductName VARCHAR(100) NULL,
+    KPI VARCHAR(100) NULL,
+    Unit VARCHAR(20) NULL,
+    [Value] DECIMAL(12,2) NULL,
+    SourceFileName VARCHAR(255) NULL,
+    IngestedAt DATETIME DEFAULT GETDATE()
+);
+GO
+
+-- 4. SAP Material Movement Table
 CREATE TABLE dbo.Fact_SAP_MaterialMovement (
     MovementID BIGINT IDENTITY(1,1) PRIMARY KEY,
     Plant VARCHAR(20) NULL,
     StorageLocation VARCHAR(20) NULL,
     MovementType INT NULL,
     MovementTypeText VARCHAR(255) NULL,
-    BillOfLading VARCHAR(50) NULL,
-    ReceivingPlant VARCHAR(20) NULL,
-    ReceivingStorageLocation VARCHAR(20) NULL,
     MaterialCode VARCHAR(50) NULL,
-    GoodsRecipient VARCHAR(100) NULL,
     MaterialDescription VARCHAR(255) NULL,
-    DocumentHeaderText VARCHAR(255) NULL,
     Batch VARCHAR(50) NULL,
-    PurchaseOrder VARCHAR(50) NULL,
     Quantity DECIMAL(12,4) NULL,
     UnitOfEntry VARCHAR(20) NULL,
-    MaterialDocument VARCHAR(50) NULL,
     PostingDate DATE NULL,
-    DocumentDate DATE NULL,
-    EntryDate DATE NULL,
-    TimeOfEntry TIME NULL,
-    UserName VARCHAR(50) NULL,
-    Text VARCHAR(255) NULL,
-    Supplier VARCHAR(100) NULL,
-    AmountLocalCurrency DECIMAL(15,2) NULL,
-    Currency VARCHAR(10) NULL,
-    [Order] VARCHAR(50) NULL,
-    Reservation VARCHAR(50) NULL,
-    Reference VARCHAR(50) NULL,
-    Item INT NULL,
-    EnteredOnEST DATE NULL,
-    TimeOfEntryEST TIME NULL,
-    DebitCreditIndicator VARCHAR(5) NULL,
-    CostCenter VARCHAR(50) NULL,
     SourceFileName VARCHAR(255) NULL,
     IngestedAt DATETIME DEFAULT GETDATE()
 );
+GO
+
+-- SQL View: Sponsor Yield & Production Volume Calculation View (Excludes ZBOM)
+CREATE VIEW dbo.vw_Sponsor_Production_KPIs AS
+SELECT 
+    MaterialCode,
+    MaterialDescription,
+    SUM(ProductionVolume_MW) AS Total_Production_MW,
+    SUM(CASE WHEN GradeCategory = 'Good' THEN GR_Qty ELSE 0 END) AS Good_Qty,
+    SUM(CASE WHEN GradeCategory = 'Defect' THEN GR_Qty ELSE 0 END) AS Defect_Qty,
+    ROUND(
+        (SUM(CASE WHEN GradeCategory = 'Good' THEN GR_Qty ELSE 0 END) * 100.0) /
+        NULLIF(SUM(CASE WHEN GradeCategory IN ('Good', 'Defect') THEN GR_Qty ELSE 0 END), 0), 
+        2
+    ) AS Yield_Percentage
+FROM dbo.Fact_SAP_ProductionVolume
+WHERE IsZBOM = 0
+GROUP BY MaterialCode, MaterialDescription;
 GO
