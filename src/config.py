@@ -1,26 +1,38 @@
+"""
+Configuration Module for Qcells 4850 KPI Dashboard.
+Handles database connections, supporting local SQLite for smooth development and Azure SQL Server for production deployment.
+"""
+
 import os
-import urllib
+from urllib.parse import quote_plus
 from sqlalchemy import create_engine
 
-# Run with Azure SQL Server and not locally
-USE_AZURE = True
-
-SERVER_NAME = "qcells-team3.database.windows.net"
-DATABASE_NAME = "qcells-database"
-DB_USER = "team3"
-DB_PASS = "Blueberry123"
-
 def get_db_engine():
-    if USE_AZURE:
-        params = urllib.parse.quote_plus(
-            f"DRIVER={{ODBC Driver 17 for SQL Server}};"
-            f"SERVER={SERVER_NAME};"
-            f"DATABASE={DATABASE_NAME};"
-            f"UID={DB_USER};pwd={DB_PASS};"
-            f"TrustServerCertificate=yes;"
-        )
-        conn_str = f"mssql+pyodbc:///?odbc_connect={params}"
-    else:
-        conn_str = "sqlite:///manufacturing_kpi.db"
+    """
+    Returns the SQLAlchemy engine connected to either local SQLite 
+    or Azure SQL Server depending on environment variables.
+    """
+    use_sqlite = os.getenv("USE_SQLITE", "true").lower() == "true"
+    
+    if use_sqlite:
+        db_file = os.getenv("DB_FILE", "manufacturing_kpi.db")
+        return create_engine(f"sqlite:///{db_file}")
+    
+    # Azure SQL Server Configuration
+    server = os.getenv("DB_SERVER", "qcells-team3.database.windows.net")
+    database = os.getenv("DB_NAME", "qcells-database")
+    driver = os.getenv("DB_DRIVER", "ODBC Driver 17 for SQL Server")
+    username = os.getenv("DB_USER", "team3")
+    password = os.getenv("DB_PASSWORD", "Blueberry123")
+    
+    parts = [
+        f"DRIVER={{{driver}}}",
+        f"SERVER={server}",
+        f"DATABASE={database}",
+        f"UID={username}",
+        f"PWD={password}",
+        "Encrypt=yes",
+        "TrustServerCertificate=yes"
+    ]
 
-    return create_engine(conn_str)
+    return create_engine("mssql+pyodbc:///?odbc_connect=" + quote_plus(";".join(parts)))
