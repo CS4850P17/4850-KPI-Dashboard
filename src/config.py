@@ -1,18 +1,35 @@
 
+"""
+Database configuration for the KPI Dashboard.
+
+Supports:
+- SQLite for local development
+- Azure SQL Database for shared deployment
+
+Credentials are loaded from environment variables.
+"""
+
 import os
-import urllib.parse
+from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine
 
 
 def get_db_engine():
-    """
-    Create a SQLAlchemy engine for Azure SQL Database.
+    # Local development mode
+    use_sqlite = (
+        os.getenv("USE_SQLITE", "true").lower() == "true"
+    )
 
-    Connection settings are read from environment
-    variables. No credentials are stored in source code.
-    """
+    if use_sqlite:
+        db_file = os.getenv(
+            "DB_FILE",
+            "manufacturing_kpi.db"
+        )
 
+        return create_engine(f"sqlite:///{db_file}")
+
+    # Azure SQL configuration
     server = os.getenv("DB_SERVER")
     database = os.getenv("DB_NAME")
     username = os.getenv("DB_USER")
@@ -23,25 +40,24 @@ def get_db_engine():
         "ODBC Driver 18 for SQL Server"
     )
 
-    # Validate required configuration
+    required = {
+        "DB_SERVER": server,
+        "DB_NAME": database,
+        "DB_USER": username,
+        "DB_PASSWORD": password,
+    }
+
     missing = [
-        name
-        for name, value in {
-            "DB_SERVER": server,
-            "DB_NAME": database,
-            "DB_USER": username,
-            "DB_PASSWORD": password,
-        }.items()
+        name for name, value in required.items()
         if not value
     ]
 
     if missing:
         raise ValueError(
-            "Missing database environment variables: "
+            "Missing environment variables: "
             + ", ".join(missing)
         )
 
-    # Build Azure SQL connection string
     connection_string = (
         f"DRIVER={{{driver}}};"
         f"SERVER=tcp:{server},1433;"
@@ -53,13 +69,7 @@ def get_db_engine():
         "Connection Timeout=30;"
     )
 
-    encoded_params = urllib.parse.quote_plus(
-        connection_string
-    )
-
-    engine = create_engine(
+    return create_engine(
         "mssql+pyodbc:///?odbc_connect="
-        + encoded_params
+        + quote_plus(connection_string)
     )
-
-    return engine
