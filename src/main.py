@@ -30,7 +30,7 @@ def run_pipeline():
       print(f"Successfully loaded {len(df_sap)} rows into Fact_SAP_MaterialMovement.")
 
 
-let preprocessing():
+
   #load the file
   #do what needs to be done on the file like filling the nulls/blanks if necessary.
   #save the file to be used later in PowerBI as a json or some other data file type
@@ -40,6 +40,5 @@ let preprocessing():
 
 
 
-if __name__ = "__main__":
-  preprocessing()
-  run_pipeline()
+if __name__ == "__main__":
+    run_pipeline()
