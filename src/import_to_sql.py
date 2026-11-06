@@ -27,7 +27,7 @@ def load_mes_to_sql(file_path: str, file_name: str):
         return
     count_and_report_duplicates(df, "MES Equipment Data")
     df["SourceFileName"] = file_name
-    df.to_sql("Fact_EquipmentState", con=engine, if_exists="append", index=False)
+    df.to_sql("Fact_EquipmentState", con=engine, if_exists="replace", index=False)
     print(f"Successfully loaded {len(df)} rows into Fact_EquipmentState.")
 
 
@@ -38,7 +38,7 @@ def load_sap_production_to_sql(file_path: str, file_name: str):
         return
     count_and_report_duplicates(df_rd, "SAP RD Production Volume Data")
     df_rd["SourceFileName"] = file_name
-    df_rd.to_sql("Fact_SAP_ProductionVolume", con=engine, if_exists="append", index=False)
+    df_rd.to_sql("Fact_SAP_ProductionVolume", con=engine, if_exists="replace", index=False)
     print(f"Successfully loaded {len(df_rd)} rows into Fact_SAP_ProductionVolume (Primary RD Source).")
 
 
@@ -49,7 +49,7 @@ def load_sap_movement_to_sql(file_path: str, file_name: str):
         return
     count_and_report_duplicates(df_sap, "SAP Material Movement Data")
     df_sap["SourceFileName"] = file_name
-    df_sap.to_sql("Fact_SAP_MaterialMovement", con=engine, if_exists="append", index=False)
+    df_sap.to_sql("Fact_SAP_MaterialMovement", con=engine, if_exists="replace", index=False)
     print(f"Successfully loaded {len(df_sap)} rows into Fact_SAP_MaterialMovement.")
 
 
@@ -60,5 +60,5 @@ def load_kpi_reference_to_sql(file_path: str, file_name: str):
         return
     count_and_report_duplicates(df_kpi, "KPI 2026 Reference Data")
     df_kpi["SourceFileName"] = file_name
-    df_kpi.to_sql("Fact_KPI_Reference", con=engine, if_exists="append", index=False)
+    df_kpi.to_sql("Fact_KPI_Reference", con=engine, if_exists="replace", index=False)
     print(f"Successfully loaded {len(df_kpi)} rows into Fact_KPI_Reference.")

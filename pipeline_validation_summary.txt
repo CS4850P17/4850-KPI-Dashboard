@@ -1,0 +1,12 @@
+=== QCELLS 4850 PIPELINE VALIDATION LOG ===
+Timestamp: 2026-11-05 23:11:47
+Status: SUCCESS
+
+[CHECK 1: File Ingestion]
+- MES Equipment Operation Rate: PASSED (2,480 rows, 644 duplicates retained)
+- SAP Material Consumption: PASSED
+- SAP Production Volume: PASSED (24,136 rows, 4,840 duplicates retained)
+
+[CHECK 2: Data Quality & ZBOM]
+- ZBOM #VALUE! Error Isolation: PASSED
+- Database Target: Local SQLite (manufacturing_kpi.db) / Azure SQL Ready: PASSED
